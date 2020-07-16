@@ -170,7 +170,8 @@ app.layout = \
                               children=[dte.DataTable(id='table_forinput')]),
                      # style={"display":"None"}),
                      html.Button(id='predict_button', children='Predict!'),
-                     html.Div(id='pred_print', children='')])
+                     html.Div(id='pred_print', children='')]),
+        html.Div(id='debug')
     ], className="container")
 
 
@@ -253,7 +254,7 @@ def input_generator(timestamp, data):
                         id='parent' + str(k),
                         options=[{'label': col, 'value': col} for col in cols],
                         multi=True,
-                        value=[random.choice(cols[k + 1:])] if k < len(cols) - 1 else ''
+                        value=''#[random.choice(cols[k + 1:])] if k < len(cols) - 1 else ''
                     )),
                     html.Td(dcc.Dropdown(
                         id='type' + str(k),
@@ -385,7 +386,7 @@ def spec_inv_dict(dic):
                State('memory', 'data')]
               )
 def newgraph_by_r_script(nclicks, box, typ, dataf):
-    if nclicks or box or typ or dataf is None:
+    if nclicks is None or box is None or typ is None or dataf is None:
         raise PreventUpdate
     boxes = json.loads(box)
     inv_boxes = spec_inv_dict(boxes)
@@ -405,7 +406,7 @@ def newgraph_by_r_script(nclicks, box, typ, dataf):
                State('parents', 'data'),
                State('types', 'data')])
 def build_graph(nclicks, box, par, typ):
-    if nclicks or box or par or typ is None:
+    if nclicks is None or box is None or par is None or typ is None:
         raise PreventUpdate
     boxes = json.loads(box)
     inv_boxes = spec_inv_dict(boxes)
@@ -421,7 +422,7 @@ def build_graph(nclicks, box, par, typ):
               [Input('drawgraph_button', 'n_clicks')],
               [State('reg_graph', 'data')])
 def draw_graph(nclicks, graph):
-    if graph or nclicks is None:
+    if graph is None or nclicks is None:
         raise PreventUpdate
     regg = RegressionGraph.deserialize(graph)
     g_image = regg.reggraph_to_dot(splinestyle="spline", labels=None)
@@ -440,7 +441,7 @@ def draw_graph(nclicks, graph):
                State('boxpar_sw', 'on'),
                State('bandwidth', 'value')])
 def teach_ice(nclicks, graph, data, modemax, rounding, boxparents, bw):
-    if nclicks or graph or data is None:
+    if nclicks is None or graph is None or data is None:
         raise PreventUpdate
     regg = RegressionGraph.deserialize(graph)
     # estset = estset #TODO: bármit ezzel
@@ -463,7 +464,7 @@ def teach_ice(nclicks, graph, data, modemax, rounding, boxparents, bw):
                State('memory', 'data'),
                State('ICE', 'data')])
 def predict(nclicks, rows, columns, traindat, serialized_model):
-    if nclicks or rows or serialized_model is None:
+    if nclicks is None or rows is None or serialized_model is None:
         raise PreventUpdate
     datareb = pd.read_json(traindat)
     mod = ICERegression.deserialize(serialized_model, data=datareb)
@@ -480,4 +481,4 @@ def predict(nclicks, rows, columns, traindat, serialized_model):
 ###########################################################################
 
 if __name__ == '__main__':
-    app.run_server(debug=True, threaded=True)
+    app.run_server(debug=True)

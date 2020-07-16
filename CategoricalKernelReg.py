@@ -1,13 +1,14 @@
 import pandas as pd
 import numpy as np
 
-from statsmodels.compat.python import string_types
+#from statsmodels.compat.python import string_types
 from statsmodels.nonparametric.kernel_regression import KernelReg
 
 
 class CategoricalKernelReg:
     
     def __init__(self, endog, exog, var_type, reg_type, bw, *args, **kwargs):
+        string_types = ['cv_ls', 'aic', 'scott']
         endog_c = endog.astype('category')
         dummy_out = pd.get_dummies(endog_c, prefix=[''], prefix_sep=[''])
         self.categs = list(dummy_out.columns)

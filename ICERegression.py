@@ -81,7 +81,7 @@ class ICERegression:
             return False
 
         for i in [x for x, y in self.reggraph.directed.nodes(data=True) if y['box'] != 'context']:
-            if self.reggraph.directed.node[i]['type'] == 'u':
+            if self.reggraph.directed.nodes[i]['type'] == 'u':
                 dummm = pd.get_dummies(self.data[i].astype('category'), prefix=i)
                 in_g = deepcopy(self.reggraph.directed.in_edges(i, data=True))
                 ou_g = deepcopy(self.reggraph.directed.out_edges(i, data=True))
@@ -103,7 +103,7 @@ class ICERegression:
             return list(self.reggraph.directed.predecessors(i)) + list(self.reggraph.undirected.neighbors(i))
         else:
             return [x for x in self.reggraph.directed.predecessors(i)
-                    if self.reggraph.directed.node[x]['box'] != self.reggraph.directed.node[i]['box']]
+                    if self.reggraph.directed.nodes[x]['box'] != self.reggraph.directed.nodes[i]['box']]
 
     # Fitting
 
@@ -167,7 +167,7 @@ class ICERegression:
 
         if not self.modemax:
             for i in nodes_notcontext:
-                if (self.reggraph.directed.node[i]['type'] == 'u') & (i in testdata.keys().tolist()):
+                if (self.reggraph.directed.nodes[i]['type'] == 'u') & (i in testdata.keys().tolist()):
                     dummm = pd.get_dummies(testdata[i].astype('category'), prefix=i)
                     testdata = testdata.drop(i, axis=1).join(dummm)
 

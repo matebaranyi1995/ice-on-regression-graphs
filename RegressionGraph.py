@@ -59,7 +59,6 @@ class RegressionGraph:
         union_graph.graph_attr['splines'] = splinestyle
         for i in self.boxes:
             union_graph.add_subgraph(self.boxes[i], rank='same', name='cluster_' + i, rankdir='RL', label=i)
-            # ToDo: check if s = ... is needed or not
         for s in union_graph.subgraphs_iter():
             if s.get_name() == 'cluster_context':
                 for i in s.nodes_iter():
@@ -93,6 +92,7 @@ class RegressionGraph:
         graph_cp = deepcopy(self)
         graph_cp.undirected = json_graph.node_link_data(graph_cp.undirected)
         graph_cp.directed = json_graph.node_link_data(graph_cp.directed)
+        # print(jp.encode(graph_cp))
         return jp.encode(graph_cp)
 
     @staticmethod
