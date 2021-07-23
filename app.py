@@ -15,9 +15,9 @@ from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 # from flask_caching import Cache
 
-from RegressionGraph import RegressionGraph
-from ICERegression import ICERegression
-from RegressionGraph import build_reggraph_by_r_script
+from modules.RegressionGraph import RegressionGraph
+from modules.ICERegression import ICERegression
+from modules.RegressionGraph import build_reggraph_by_r_script
 
 # external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -170,8 +170,7 @@ app.layout = \
                               children=[dte.DataTable(id='table_forinput')]),
                      # style={"display":"None"}),
                      html.Button(id='predict_button', children='Predict!'),
-                     html.Div(id='pred_print', children='')]),
-        html.Div(id='debug')
+                     html.Div(id='pred_print', children='')])
     ], className="container")
 
 
@@ -254,7 +253,7 @@ def input_generator(timestamp, data):
                         id='parent' + str(k),
                         options=[{'label': col, 'value': col} for col in cols],
                         multi=True,
-                        value=''#[random.choice(cols[k + 1:])] if k < len(cols) - 1 else ''
+                        value=[random.choice(cols[k + 1:])] if k < len(cols) - 1 else ''
                     )),
                     html.Td(dcc.Dropdown(
                         id='type' + str(k),
@@ -449,10 +448,10 @@ def teach_ice(nclicks, graph, data, modemax, rounding, boxparents, bw):
     model = ICERegression(reggraph=regg,
                           data=datareb,
                           bw=bw,
-                          modemax=modemax,
+                          dummify=modemax,
                           rounding=rounding,
                           boxparents=boxparents)
-    model.learn()
+    model.fit()
     return model.serialize()  # TODO: megoldani a model encode-olást, maybe done?
 
 
@@ -481,4 +480,4 @@ def predict(nclicks, rows, columns, traindat, serialized_model):
 ###########################################################################
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, threaded=True)

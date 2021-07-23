@@ -1,9 +1,13 @@
+import os
+import tempfile
 from copy import deepcopy
 
+import matplotlib.pyplot as plt
 import jsonpickle as jp
 import networkx as nx
 import pandas as pd
 from IPython.display import Image
+from IPython import get_ipython
 from networkx import Graph
 from networkx import DiGraph
 from networkx.readwrite import json_graph
@@ -59,6 +63,7 @@ class RegressionGraph:
         union_graph.graph_attr['splines'] = splinestyle
         for i in self.boxes:
             union_graph.add_subgraph(self.boxes[i], rank='same', name='cluster_' + i, rankdir='RL', label=i)
+            # ToDo: check if s = ... is needed or not
         for s in union_graph.subgraphs_iter():
             if s.get_name() == 'cluster_context':
                 for i in s.nodes_iter():
@@ -81,18 +86,29 @@ class RegressionGraph:
     def draw_it(self, formating='png', prog='dot', splinestyle="spline", labels=None, *args, **kwargs):
         # print(self.reggraph_to_dot())
         g = self.reggraph_to_dot(splinestyle=splinestyle, labels=labels)
-        return Image(g.draw(format=formating, prog=prog, *args, **kwargs))
+        if get_ipython().__class__.__name__ in ("NoneType", "PyDevTerminalInteractiveShell"):
+            tempf = tempfile.NamedTemporaryFile(suffix='.png')
+            tempf.close()
+            g.draw(path=tempf.name, format=formating, prog=prog, *args, ** kwargs)
+            im = plt.imread(tempf.name)
+            plt.imshow(im)
+            plt.axis('off')
+            plt.draw()
+            plt.show()
+            os.remove(tempf.name)
+            return True
+        else:
+            return Image(g.draw(format=formating, prog=prog, *args, **kwargs))
 
-    def save_it(self, fp='regressiongraph.png', formating='png', prog='dot', splinestyle="spline", labels=None,
+    def save_it(self, fp='regressiongraph.png', format='png', prog='dot', splinestyle="spline", labels=None,
                 *args, **kwargs):
         g = self.reggraph_to_dot(splinestyle=splinestyle, labels=labels)
-        return g.draw(fp=fp, format=formating, prog=prog, *args, **kwargs)
+        return g.draw(path=fp, format=format, prog=prog, *args, **kwargs)
 
     def serialize(self):
         graph_cp = deepcopy(self)
         graph_cp.undirected = json_graph.node_link_data(graph_cp.undirected)
         graph_cp.directed = json_graph.node_link_data(graph_cp.directed)
-        # print(jp.encode(graph_cp))
         return jp.encode(graph_cp)
 
     @staticmethod
@@ -131,7 +147,7 @@ def build_reggraph_by_r_script(dataframe, boxes, types):
 
     adja = pd.read_csv('reggraph_adjmat.csv', sep=',')
     ggg = nx.convert_matrix.from_numpy_matrix(adja.iloc[:, 1:].values, create_using=nx.DiGraph)
-    # print(ggg.nodes)
+    # print(graph.nodes)
     keys = list(ggg.nodes)
     values = adja.iloc[:, 0]
     ggg = nx.relabel_nodes(ggg, dict(zip(keys, values)))

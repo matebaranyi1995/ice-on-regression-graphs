@@ -1,14 +1,14 @@
 import pandas as pd
 import numpy as np
 
-#from statsmodels.compat.python import string_types
 from statsmodels.nonparametric.kernel_regression import KernelReg
 
 
 class CategoricalKernelReg:
+    # Note: categorical variables should be coded with numbers
+    # in order for CategoricalKernelReg to work
     
     def __init__(self, endog, exog, var_type, reg_type, bw, *args, **kwargs):
-        string_types = ['cv_ls', 'aic', 'scott']
         endog_c = endog.astype('category')
         dummy_out = pd.get_dummies(endog_c, prefix=[''], prefix_sep=[''])
         self.categs = list(dummy_out.columns)
@@ -23,7 +23,7 @@ class CategoricalKernelReg:
         self.reg_type = reg_type
         self.k_vars = len(self.var_type)
         self.nobs = np.shape(endog)[0]
-        if not isinstance(bw, string_types):
+        if not isinstance(bw, str):
             self._bw_method = "user-specified"
         else:
             self._bw_method = bw
