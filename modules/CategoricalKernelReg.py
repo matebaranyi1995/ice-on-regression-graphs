@@ -5,8 +5,16 @@ from statsmodels.nonparametric.kernel_regression import KernelReg
 
 
 class CategoricalKernelReg:
-    # Note: categorical variables should be coded with numbers
-    # in order for CategoricalKernelReg to work
+    """ 
+    Kernel regression implementation with categorical output.
+    The maximally probable class will be predicted based on the 
+    kernel regression of the one-hot encoded dummies.
+    Notes: 
+      * Categorical variables should be encoded with numbers
+      in order for this class to work.
+      * It works based on statsmodels' KernelReg implementation.
+      * It is supported by the sklearn-like KernelRegWrapper. 
+    """
     
     def __init__(self, endog, exog, var_type, reg_type, bw, *args, **kwargs):
         endog_c = endog.astype('category')
@@ -28,10 +36,10 @@ class CategoricalKernelReg:
         else:
             self._bw_method = bw
         
-    def fit(self, data=None):
+    def fit(self, data_predict=None):
         preds = pd.DataFrame()
         for k, v in self.models.items():
-            preds[k] = v.fit(data)[0]
+            preds[k] = v.fit(data_predict=data_predict)[0]
         mean = preds.idxmax(axis=1)
         return mean
     

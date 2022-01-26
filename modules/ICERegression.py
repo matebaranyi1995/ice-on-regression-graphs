@@ -10,13 +10,17 @@ import pandas as pd
 from networkx import topological_sort
 
 from modules.RegressionGraph import RegressionGraph
+from modules.KernelRegWrapper import KernelRegWrapper
 
 
 class ICERegression:
+    """
+    Class for the Iterated Conditional Regression algorithm. 
+    """
 
     def __init__(self, reggraph=None,
                  dummify=False, rounding=False, boxparents=False, orderedascat=False,
-                 num_mod_class=None, num_mod_args=None,
+                 num_mod_class=KernelRegWrapper, num_mod_args={"bw":"scott2"},
                  cat_mod_class=None, cat_mod_args=None,
                  num_mod_sel_class=None, num_mod_sel_args=None,
                  cat_mod_sel_class=None, cat_mod_sel_args=None):
@@ -69,6 +73,12 @@ class ICERegression:
             self.num_mod_sel_args = {}
 
         self.dummified_vars = []
+        if boxparents:
+            g_dir = self.reggraph.undirected.to_directed()
+            for u in g_dir.nodes(data=False):
+                for v in g_dir.successors(u):
+                    if not self.reggraph.directed.has_edge(v, u):
+                        self.reggraph.directed.add_edge(u, v)
 
     # run this before learning on the data for compatibility
     def check_data(self, data):
@@ -110,10 +120,10 @@ class ICERegression:
 
     def parents(self, i):
         if self.boxparents:
-            return list(self.reggraph.directed.predecessors(i)) + list(self.reggraph.undirected.neighbors(i))
+            return sorted(list(self.reggraph.directed.predecessors(i)))# + list(self.reggraph.undirected.neighbors(i)))
         else:
-            return [x for x in self.reggraph.directed.predecessors(i)
-                    if self.reggraph.directed.nodes[x]['box'] != self.reggraph.directed.nodes[i]['box']]
+            return sorted([x for x in self.reggraph.directed.predecessors(i)
+                    if self.reggraph.directed.nodes[x]['box'] != self.reggraph.directed.nodes[i]['box']])
 
     def add_vtype_args(self, inputs, catmod=False):
         vtypes = ''.join([self.reggraph.directed.nodes[inp]['type'] for inp in inputs])
@@ -203,7 +213,7 @@ class ICERegression:
 
         def predict_step(output, inputs, test_data):
 
-            x_test = test_data[inputs].to_numpy(dtype='float32', copy=True)
+            x_test = test_data[inputs].to_numpy(dtype='float64', copy=True)
             if ((self.reggraph.directed.nodes[output]['type'] == 'o') | (output in self.dummified_vars))\
                     & self.rounding:
                 test_data.loc[:, output] = np.around(self.models[output].predict(x_test))
@@ -230,6 +240,7 @@ class ICERegression:
         for i in [j for j in topological_sort(self.reggraph.directed)]:
             if (i in nodes_notcontext) & (i not in testdata.keys().tolist()):
                 parents = self.parents(i)
+                print(parents)
                 predict_step(i, parents, testdata)
                 if plot_steps:
                     plot_step(i, parents, testdata, traindata)
@@ -265,7 +276,7 @@ class ICERegression:
     def __repr__(self):
         """Provide something sane to print."""
         st = ''
-        for i in self.reggraph.directed.node(data=True):
+        for i in self.reggraph.directed.nodes(data=True):
             st += str(i)
             st += '\n'
         if self.models:
@@ -280,22 +291,17 @@ class ICERegression:
 
     def serialize(self):
         mod_cp = deepcopy(self)
-        mod_cp.data = None
         for k in list(mod_cp.models):
             mod_cp.models[k] = cp.dumps(mod_cp.models[k])
         mod_cp.reggraph = mod_cp.reggraph.serialize()
         return jp.encode(mod_cp)
 
     @staticmethod
-    def deserialize(serialized_ice, data=None):
+    def deserialize(serialized_ice):
         ice = jp.decode(serialized_ice)
         ice.reggraph = RegressionGraph.deserialize(ice.reggraph)
         for k in list(ice.models):
             ice.models[k] = cp.loads(ice.models[k])
-        if type(data) == pd.DataFrame:
-            ice.data = data
-        elif type(data) == np.ndarray and ice.cols:
-            ice.data = pd.DataFrame(data=data, columns=ice.cols)
         return ice
 
     @staticmethod

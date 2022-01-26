@@ -18,10 +18,11 @@ from dash.exceptions import PreventUpdate
 from modules.RegressionGraph import RegressionGraph
 from modules.ICERegression import ICERegression
 from modules.RegressionGraph import build_reggraph_by_r_script
+from networkx import topological_sort
 
 # external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-numofcells = 20  # increase this if desired number of variables is greater
+numofcells = 20  # increase this if the desired number of variables is greater
 
 app = dash.Dash(__name__, external_stylesheets=['assets/modified.css'])
 
@@ -169,7 +170,8 @@ app.layout = \
                      html.Div(id='inputs_for pred',
                               children=[dte.DataTable(id='table_forinput')]),
                      # style={"display":"None"}),
-                     html.Button(id='predict_button', children='Predict!'),
+                     html.Button(id='predict_button', children='Predict'),
+                     html.Button(id="clear_button", children="Clear cells"),
                      html.Div(id='pred_print', children='')])
     ], className="container")
 
@@ -188,7 +190,7 @@ def parse_content(nclicks, contents, filename):
         if 'csv' in filename:
             # Assume that the user uploaded a CSV file
             df = pd.read_csv(
-                io.StringIO(decoded.decode('utf-8')))
+                io.StringIO(decoded.decode('utf-8')), sep = None)
             return df.to_json()
         elif 'xls' in filename:
             # Assume that the user uploaded an excel file
@@ -297,17 +299,19 @@ def input_generator(timestamp, data):
 
 
 @app.callback(Output('inputs_for pred', 'children'),
-              [Input('memory', 'modified_timestamp')],
-              [State('memory', 'data')])
-def input_generator_forpred(timestamp, data):
+              [Input('reg_graph', 'modified_timestamp')],
+              [State('reg_graph', 'data')])
+def input_generator_forpred(timestamp, graph):
     if timestamp is None:
         raise PreventUpdate
     try:
-        df = pd.read_json(data)
+        # df = pd.read_json(data)
+        regg = RegressionGraph.deserialize(graph)
+        nodes = [j for j in topological_sort(regg.directed)]
         return [html.H5("Type some inputs for prediction:"),
                 dte.DataTable(id='table_forinput',
-                              data=[{col: np.NaN for col in df.columns}],
-                              columns=[{"name": col, "id": col} for col in df.columns],
+                              data=[{col: np.NaN for col in nodes}],
+                              columns=[{"name": col, "id": col} for col in nodes],
                               editable=True)]
     except ValueError:
         pass
@@ -391,7 +395,7 @@ def newgraph_by_r_script(nclicks, box, typ, dataf):
     inv_boxes = spec_inv_dict(boxes)
     types = json.loads(typ)
     data = pd.read_json(dataf)
-    digr = build_reggraph_by_r_script(data, inv_boxes, types)
+    digr = build_reggraph_by_r_script(data, inv_boxes, types)[1]
     cols = data.columns.tolist()
     oulist = [list(digr.predecessors(col)) for col in cols]
     nonelist = [None] * (numofcells - len(cols))
@@ -446,36 +450,42 @@ def teach_ice(nclicks, graph, data, modemax, rounding, boxparents, bw):
     # estset = estset #TODO: bármit ezzel
     datareb = pd.read_json(data)
     model = ICERegression(reggraph=regg,
-                          data=datareb,
-                          bw=bw,
+                          num_mod_args = {'bw':bw},
                           dummify=modemax,
                           rounding=rounding,
                           boxparents=boxparents)
-    model.fit()
-    return model.serialize()  # TODO: megoldani a model encode-olást, maybe done?
+    model.fit(data=datareb)
+    return model.serialize()  # TODO: is model encoding correct?
 
 
 # Prediction
-@app.callback(Output('pred_print', 'children'),
-              [Input('predict_button', 'n_clicks')],
+@app.callback(Output('table_forinput', 'data'),#Output('pred_print', 'children'),
+              [Input('predict_button', 'n_clicks'),
+                Input("clear_button", "n_clicks"),
+                Input('predict_button', 'n_clicks_timestamp'),
+                Input("clear_button", "n_clicks_timestamp")],
               [State('table_forinput', 'data'),
                State('table_forinput', 'columns'),
                State('memory', 'data'),
                State('ICE', 'data')])
-def predict(nclicks, rows, columns, traindat, serialized_model):
+def predict(nclicks, cclicks, nclicksts, cclicksts, rows, columns, traindat, serialized_model):
     if nclicks is None or rows is None or serialized_model is None:
         raise PreventUpdate
-    datareb = pd.read_json(traindat)
-    mod = ICERegression.deserialize(serialized_model, data=datareb)
-    inp = pd.DataFrame(rows, columns=[c['name'] for c in columns]).dropna(axis=1)
-    preds = mod.predict(inp).round(2)
-    return html.Div([
-        html.H5("Predicted values:"),
-        dte.DataTable(id='pred_table',
-                      data=preds.to_dict("rows"),
-                      columns=[{"name": col, "id": col} for col in preds.columns])
-    ])
-
+    if nclicksts > cclicksts:
+        # datareb = pd.read_json(traindat)
+        mod = ICERegression.deserialize(serialized_model)
+        inp = pd.DataFrame(rows, columns=[c['name'] for c in columns]).dropna(axis=1)
+        preds = mod.predict(inp).round(2)
+        print(preds.to_dict("rows"))
+        return preds.to_dict("rows")
+    else:
+        return [{col['name']: np.NaN for col in columns}]
+    # return html.Div([
+    #     html.H5("Predicted values:"),
+    #     dte.DataTable(id='pred_table',
+    #                   data=preds.to_dict("rows"),
+    #                   columns=[{"name": col, "id": col} for col in preds.columns])
+    # ])
 
 ###########################################################################
 

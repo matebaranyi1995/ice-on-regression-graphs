@@ -8,7 +8,10 @@ from modules.CategoricalKernelReg import CategoricalKernelReg
 
 
 class KernelRegWrapper(BaseEstimator, RegressorMixin):
-    """ A sklearn-style wrapper for KernelReg statsmodels regressor """
+    """ 
+    A sklearn-style wrapper for statsmodels' KernelReg implementation.
+    Categorical outputs are handled by the CategoricalKernelReg class.
+    """
 
     def __init__(self, var_type=None, y_type="numeric", bw='cv_ls', reg_type='lc', settings=None):
         if y_type[:5] == "categ":
@@ -35,7 +38,7 @@ class KernelRegWrapper(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X):
-        return self.fitted_model.fit(X)[0]
+        return self.fitted_model.fit(data_predict=X)[0]
 
     @staticmethod
     def scott_bw(x_learn):

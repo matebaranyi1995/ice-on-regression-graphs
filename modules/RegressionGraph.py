@@ -1,6 +1,9 @@
 import os
 import tempfile
+import subprocess
+import warnings
 from copy import deepcopy
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import jsonpickle as jp
@@ -14,6 +17,9 @@ from networkx.readwrite import json_graph
 
 
 class RegressionGraph:
+    """
+    Class for handling the structure of a regression graph. 
+    """
 
     def __init__(self, incoming_digraph=None, incoming_ungraph=None,
                  boxes=None, types=None, reversed_input=False):
@@ -48,6 +54,8 @@ class RegressionGraph:
             else:
                 self.directed.nodes[i]['type'] = 'c'
         self.undirected = Graph(incoming_ungraph)
+        if incoming_ungraph is None:
+            self.undirected.add_nodes_from(self.directed)
         edge_data = deepcopy(self.directed.edges(data=True))
         for u, v, d in edge_data:
             if self.directed.nodes[u]['box'] == self.directed.nodes[v]['box']:
@@ -119,36 +127,67 @@ class RegressionGraph:
         return reggraph
 
 
-def build_reggraph_by_r_script(dataframe, boxes, types):
-    # the output of this should be the arg incoming_digraph
-    # with reversed_input=False
-    # the first key of boxes should be the 'context'
+def build_reggraph_by_r_script(dataframe, boxes, types=None):
+    """ 
+    It learns the structure of a MVR chain graph based on an R script.
+    The edges of the 'context' box should be re-evaluated because MVR 
+    chain graphs use covariance graphs here too. 
+    However, it has no effect on the ICE algorithm, 
+    so this step can be skipped.
+
+    Notes:
+      * The output of this should be the arg incoming_digraph of 
+      the RegressionGraph class with reversed_input=False.
+      * The first key of boxes should be named 'context'.
+    """
+
+    Path("tmp").mkdir(parents=True, exist_ok=True)
 
     if dataframe.shape[0] > 1000:
-        dataframe.sample(n=1000).to_json("data.json", orient="records")
+        dataframe.sample(n=1000).to_json("tmp/data.json", orient="records")
     else:
-        dataframe.to_json("data.json", orient="records")
+        dataframe.to_json("tmp/data.json", orient="records")
 
-    rb = '~'.join(['+'.join(boxes[key]) for key in sorted(boxes)])
-    # print(rb)
-    rt = ""
-    for box in [boxes[key] for key in sorted(boxes)]:
-        print(box)
-        for v in box:
-            if types[v] == 'c':
-                rt += 'cont,'
-            if types[v] == 'o':
-                rt += 'count,'
-    rt = rt[:-1]
+
+    variables = list(boxes.values())
+    if list(boxes.keys())[0] == "context":
+        variables.reverse()
+    elif list(boxes.keys())[-1] == "context":
+        pass
+    else:
+        warnings.warn("""
+        The first or last box should be named `context` to work with the 
+        `ICERegression` class.""")
+
+    rb = '~'.join(['+'.join(variabs) for variabs in variables])
+    print(rb)
+
+    # # the variable types are handled by the R parts instead
+    # rt = ""
+    # for box in [boxes[key] for key in sorted(boxes)]:
+    #     print(box)
+    #     for v in box:
+    #         if dataframe[v].nunique() == 2:
+    #             rt += 'bin,'
+    #         elif types[v] == 'c':
+    #             rt += 'cont,'
+    #         elif types[v] == 'o':
+    #             rt += 'ord,'
+    #         elif types[v] == 'u':
+    #             rt += 'count,'
+    # rt = rt[:-1]
     # print(rt)
 
-    import subprocess
-    subprocess.call(["Rscript", "graph_builder.R", "data.json", rb, rt])
+    subprocess.call(["Rscript", "modules/graph_builder.R", "tmp/data.json", rb])#, rt])
 
-    adja = pd.read_csv('reggraph_adjmat.csv', sep=',')
-    ggg = nx.convert_matrix.from_numpy_matrix(adja.iloc[:, 1:].values, create_using=nx.DiGraph)
+    adja = pd.read_csv('tmp/reggraph_adjmat.csv', sep=',', index_col=0)
+    print(adja)
+    dir_graph = nx.convert_matrix.from_numpy_matrix(adja.values, create_using=nx.DiGraph)
     # print(graph.nodes)
-    keys = list(ggg.nodes)
-    values = adja.iloc[:, 0]
-    ggg = nx.relabel_nodes(ggg, dict(zip(keys, values)))
-    return ggg
+    keys = list(dir_graph.nodes)
+    values = list(adja)
+    dir_graph = nx.relabel_nodes(dir_graph, dict(zip(keys, values)))
+
+    reg_graph = RegressionGraph(incoming_digraph=dir_graph, types=types,
+                            boxes=boxes, reversed_input=False)
+    return reg_graph, dir_graph
